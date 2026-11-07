@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>会记仇的影子 V2.0 · L01 垂直切片</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: #080b17; color: #f4f6ff; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  body { overscroll-behavior: none; touch-action: manipulation; }
+  .app { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-left)) max(18px, env(safe-area-inset-bottom)); background: radial-gradient(900px 500px at 50% -12%, #273368 0%, #080b17 62%); }
+  h1 { margin: 2px 0 4px; font-size: clamp(18px, 3vw, 26px); letter-spacing: .06em; }
+  h1 b { color: #ff7777; }
+  .sub { margin: 0 0 10px; color: #b7c0e6; font-size: 13px; text-align: center; }
+  .hud { width: min(960px, 96vw); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; margin-bottom: 8px; }
+  .pill { padding: 6px 10px; border: 1px solid #354274; border-radius: 999px; background: #151b36; color: #dce4ff; font-size: 12px; }
+  .pill b { color: #ffd166; }
+  button { border: 1px solid #45538e; border-radius: 999px; background: #202a50; color: #fff; padding: 8px 13px; font: inherit; cursor: pointer; }
+  button:hover { background: #2e3b70; }
+  button.primary { border-color: #57c98b; background: #256b49; }
+  button.primary:hover { background: #2f8a5e; }
+  .stage { position: relative; width: min(960px, 96vw); aspect-ratio: 16/9; overflow: hidden; border: 1px solid #344274; border-radius: 16px; background: #11162c; box-shadow: 0 22px 70px rgba(0,0,0,.48); touch-action: none; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .overlay { position: absolute; inset: 0; z-index: 5; display: none; place-items: center; padding: 16px; background: rgba(4,6,15,.78); backdrop-filter: blur(3px); text-align: center; }
+  .overlay.show { display: grid; }
+  .card { width: min(620px, 94%); padding: 22px 24px; border: 1px solid #45558f; border-radius: 18px; background: #161d3b; }
+  .card h2 { margin: 0 0 8px; font-size: 23px; }
+  .card p { margin: 7px 0 15px; color: #c8d0f1; line-height: 1.7; }
+  .note { margin-top: 12px; color: #8c98c4; font-size: 12px; line-height: 1.6; }
+  .tip { width: min(960px, 96vw); margin-top: 9px; padding: 9px 13px; border: 1px solid #2d3a6e; border-radius: 12px; background: #121832; color: #dce5ff; font-size: 13px; line-height: 1.6; }
+  .tip b { color: #ffd166; }
+  .touch { width: min(960px, 96vw); display: none; justify-content: space-between; margin-top: 9px; padding: 0 4px; pointer-events: none; }
+  .touch .group { display: flex; gap: 10px; }
+  .touch button { width: 62px; height: 62px; padding: 0; border-color: rgba(255,255,255,.45); background: rgba(25,33,70,.7); font-size: 23px; pointer-events: auto; touch-action: none; }
+  .touch button.jump { width: 72px; height: 72px; background: rgba(38,112,77,.75); font-size: 28px; }
+  .touch button.on { background: rgba(255,209,102,.7); }
+  .legend { margin-top: 10px; color: #727ca8; font-size: 11px; text-align: center; }
+  @media (pointer: coarse) { .touch { display: flex; } }
+  @media (pointer: coarse) and (orientation: portrait) { .stage::after { content: "📱 请旋转 iPhone 横屏"; position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(3,5,14,.78); color: #fff; font-size: 16px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>《会记仇的影子》<b> · L01</b></h1>
+  <p class="sub">第一关「它会帮你」· V2.0 iPhone 横屏垂直切片</p>
+  <div class="hud">
+    <span class="pill">状态：<b id="status">准备开始</b></span>
+    <span class="pill">时间：<b id="time">0.0</b>s</span>
+    <span class="pill">录制：<b id="record">0.0</b>s</span>
+    <span class="pill">影子：<b id="shadowState">等待</b></span>
+    <span class="pill">门：<b id="gateState">锁住</b></span>
+    <span>
+      <button id="restart">↻ 重开 (R)</button>
+      <button id="mute">🔊 音效</button>
+    </span>
+  </div>
+  <div class="stage">
+    <canvas id="game" width="960" height="540" aria-label="L01 可玩原型"></canvas>
+    <div id="startOverlay" class="overlay show">
+      <div class="card">
+        <h2>第一关 · 它会帮你</h2>
+        <p>走到黄色机关上站满约 3 秒，让影子记住你的动作。离开后向右跑，在门前等影子重演并踩住机关，门开后冲向绿色终点。</p>
+        <button id="start" class="primary">开始 L01</button>
+        <div class="note">键盘：A/D 或方向键移动，W/空格跳跃，R 重开。iPhone：下方触控键。<br>这是 HTML→Unity 过渡原型，后续替换点已写在源码底部。</div>
+      </div>
+    </div>
+    <div id="winOverlay" class="overlay">
+      <div class="card">
+        <h2 style="color:#7dffb0">🎉 L01 完成</h2>
+        <p>影子踩住了 <b>plate_a</b>，<b>gate_a</b> 已打开，你到达了 <b>exit_a</b>。</p>
+        <button id="replay" class="primary">重玩 L01</button>
+        <div class="note">迁移提示：保留 L01 ID 和机关语义；把本原型的输入、录制、回放和碰撞替换为 Unity 30 Hz 运行时。</div>
+      </div>
+    </div>
+  </div>
+  <div class="touch" aria-label="触控操作">
+    <div class="group"><button id="left" aria-label="向左">◀</button><button id="right" aria-label="向右">▶</button></div>
+    <div class="group"><button id="jump" class="jump" aria-label="跳跃">⬆</button><button id="touchRestart" aria-label="重开">↻</button></div>
+  </div>
+  <div class="tip"><b>任务：</b><span id="tip">先站上黄色机关，保持不动约 3 秒。</span></div>
+  <div class="legend">源基线：`game-source/shadow-grudge-iphone.html` L01 · 24 关 ID 保留 · Side2D→Free3D 为 V2.0 Unity 新增表现</div>
+</div>
+<script>
+(() => {
+  'use strict';
+  // SOURCE-LOCKED L01 VALUES: extracted from game-source/shadow-grudge-iphone.html.
+  const L01 = Object.freeze({
+    levelId: 'L01', legacyLevelId: '1', canvasWidth: 960, canvasHeight: 540, groundY: 472,
+    player: Object.freeze({ startX: 64, width: 34, height: 44, moveSpeedPerFrame: 3.9, gravityPerFrame2: 0.7, jumpVelocityPerFrame: -13.2 }),
+    shadow: Object.freeze({ legacyDelayFrames: 180, tickRate: 60 }),
+    plate: Object.freeze({ targetId: 'plate_a', x: 272, width: 96 }),
+    gate: Object.freeze({ targetId: 'gate_a', x: 592, width: 44, top: 286 }),
+    exit: Object.freeze({ targetId: 'exit_a', x: 836, width: 52, top: 380, height: 92 })
+  });
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const statusEl = document.getElementById('status');
+  const timeEl = document.getElementById('time');
+  const recordEl = document.getElementById('record');
+  const shadowStateEl = document.getElementById('shadowState');
+  const gateStateEl = document.getElementById('gateState');
+  const tipEl = document.getElementById('tip');
+  const startOverlay = document.getElementById('startOverlay');
+  const winOverlay = document.getElementById('winOverlay');
+  const keys = Object.create(null);
+  const touchKeys = Object.create(null);
+  const history = [];
+  const sourceTickMs = 1000 / L01.shadow.tickRate;
+  let state = 'ready';
+  let player = null;
+  let shadow = null;
+  let frame = 0;
+  let startAt = 0;
+  let lastNow = 0;
+  let accumulator = 0;
+  let gateOpen = 0;
+  let plateStandFrames = 0;
+  let shadowOnPlate = false;
+  let muted = false;
+  let audioContext = null;
+
+  function newPlayer() {
+    return { x: L01.player.startX, y: L01.groundY - L01.player.height, w: L01.player.width, h: L01.player.height, vx: 0, vy: 0, onGround: false, face: 1, walk: 0 };
+  }
+
+  function resetGame(showStart = false) {
+    state = showStart ? 'ready' : 'playing';
+    player = newPlayer();
+    shadow = null;
+    history.length = 0;
+    frame = 0;
+    accumulator = 0;
+    gateOpen = 0;
+    plateStandFrames = 0;
+    shadowOnPlate = false;
+    startAt = performance.now();
+    lastNow = startAt;
+    startOverlay.classList.toggle('show', showStart);
+    winOverlay.classList.remove('show');
+    statusEl.textContent = showStart ? '准备开始' : '录制中';
+    tipEl.textContent = '先站上黄色机关，保持不动约 3 秒。';
+    updateHud();
+  }
+
+  function startGame() { resetGame(false); }
+
+  function isPressed(name) { return !!keys[name] || !!touchKeys[name]; }
+
+  function readMove() {
+    const left = isPressed('left') || isPressed('a');
+    const right = isPressed('right') || isPressed('d');
+    if (left === right) return 0;
+    return right ? 1 : -1;
+  }
+
+  function overlap(a, b) {
+    return a && b && a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function onPlate(entity) {
+    return !!entity && entity.x + entity.w > L01.plate.x && entity.x < L01.plate.x + L01.plate.width && entity.y + entity.h >= L01.groundY - 16;
+  }
+
+  function solids() {
+    const result = [{ x: 0, y: L01.groundY, w: L01.canvasWidth, h: 68 }, { x: 0, y: 0, w: 10, h: L01.canvasHeight }, { x: 950, y: 0, w: 10, h: L01.canvasHeight }];
+    result.push({ x: L01.gate.x, y: 0, w: L01.gate.width, h: L01.gate.top });
+    const remaining = (L01.groundY - L01.gate.top) * (1 - gateOpen);
+    if (remaining > 4) result.push({ x: L01.gate.x, y: L01.groundY - remaining, w: L01.gate.width, h: remaining });
+    return result;
+  }
+
+  function physics(entity) {
+    entity.vy += L01.player.gravityPerFrame2;
+    if (entity.vy > 16) entity.vy = 16;
+    entity.x += entity.vx;
+    for (const solid of solids()) {
+      if (!overlap(entity, solid)) continue;
+      if (entity.vx > 0) entity.x = solid.x - entity.w;
+      else if (entity.vx < 0) entity.x = solid.x + solid.w;
+      entity.vx = 0;
+    }
+    entity.y += entity.vy;
+    entity.onGround = false;
+    for (const solid of solids()) {
+      if (!overlap(entity, solid)) continue;
+      if (entity.vy > 0) { entity.y = solid.y - entity.h; entity.vy = 0; entity.onGround = true; }
+      else if (entity.vy < 0) { entity.y = solid.y + solid.h; entity.vy = 0; }
+    }
+    entity.x = Math.max(10, Math.min(950 - entity.w, entity.x));
+  }
+
+  function tick() {
+    if (state !== 'playing') return;
+    frame += 1;
+    const move = readMove();
+    player.vx = move * L01.player.moveSpeedPerFrame;
+    if (move !== 0) { player.face = move; player.walk += 1; } else { player.walk = 0; }
+    if ((isPressed('jump') || isPressed('w')) && player.onGround) { player.vy = L01.player.jumpVelocityPerFrame; player.onGround = false; }
+    physics(player);
+    history.push({ x: player.x, y: player.y, face: player.face, walk: player.walk });
+    if (history.length > 20000) history.shift();
+
+    const shadowIndex = history.length - 1 - L01.shadow.legacyDelayFrames;
+    shadow = shadowIndex >= 0 ? { ...history[shadowIndex], w: L01.player.width, h: L01.player.height, __shadow: true } : null;
+    shadowOnPlate = onPlate(shadow);
+    const playerOnPlate = onPlate(player);
+    const targetGate = playerOnPlate || shadowOnPlate ? 1 : 0;
+    gateOpen += (targetGate - gateOpen) * 0.14;
+    if (Math.abs(targetGate - gateOpen) < 0.01) gateOpen = targetGate;
+    if (playerOnPlate) plateStandFrames += 1;
+
+    if (!shadow) {
+      statusEl.textContent = '录制中';
+      tipEl.textContent = plateStandFrames >= 150 ? '很好！离开机关往右到门前等影子重走你的路。' : '先站上黄色机关，保持不动约 3 秒。';
+    } else if (!shadowOnPlate) {
+      statusEl.textContent = '影子回放';
+      tipEl.textContent = '影子正在重演。到门前等它踩住黄色机关。';
+    } else {
+      statusEl.textContent = '门已开启';
+      tipEl.textContent = '就是现在！影子正替你踩着机关，快冲到右侧绿色终点！';
+    }
+
+    const exitRect = { x: L01.exit.x, y: L01.exit.top, w: L01.exit.width, h: L01.exit.height };
+    if (overlap(player, exitRect)) {
+      state = 'won';
+      statusEl.textContent = '完成';
+      winOverlay.classList.add('show');
+      try { localStorage.setItem('shadowGrudgeL01PrototypeComplete', '1'); } catch (_) { /* storage is optional */ }
+    }
+    updateHud();
+  }
+
+  function updateHud() {
+    const elapsed = state === 'ready' ? 0 : (performance.now() - startAt) / 1000;
+    timeEl.textContent = elapsed.toFixed(1);
+    // Recorded time is source frames / 60, independent of render frame rate.
+    recordEl.textContent = (Math.min(frame, L01.shadow.legacyDelayFrames) / L01.shadow.tickRate).toFixed(1);
+    shadowStateEl.textContent = shadow ? (shadowOnPlate ? '踩住机关' : '回放中') : '等待 3 秒';
+    gateStateEl.textContent = gateOpen > 0.85 ? '已开' : '锁住';
+  }
+
+  function drawCharacter(entity, isShadow) {
+    if (!entity) return;
+    ctx.save();
+    ctx.translate(entity.x + entity.w / 2, entity.y + entity.h / 2);
+    ctx.scale(entity.face || 1, 1);
+    ctx.translate(-(entity.x + entity.w / 2), -(entity.y + entity.h / 2));
+    ctx.fillStyle = isShadow ? 'rgba(28,10,25,.96)' : '#f5f7ff';
+    ctx.shadowColor = isShadow ? 'rgba(255,40,75,.55)' : 'rgba(255,255,255,.45)';
+    ctx.shadowBlur = isShadow ? 14 : 10;
+    roundRect(entity.x, entity.y + (entity.walk ? Math.sin(entity.walk * .35) * 1.5 : 0), entity.w, entity.h - 6, 10);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = isShadow ? '#ff334f' : '#11152a';
+    ctx.beginPath(); ctx.arc(entity.x + entity.w / 2 - 4, entity.y + 16, 3.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(entity.x + entity.w / 2 + 6, entity.y + 16, 3.4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  function draw() {
+    const gradient = ctx.createLinearGradient(0, 0, 0, L01.canvasHeight);
+    gradient.addColorStop(0, '#1b2450'); gradient.addColorStop(.68, '#111733'); gradient.addColorStop(1, '#0d1026');
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, L01.canvasWidth, L01.canvasHeight);
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    for (let i = 0; i < 48; i += 1) ctx.fillRect((i * 97) % 960, (i * 53) % 240, 2, 2);
+    ctx.fillStyle = '#232a52'; ctx.fillRect(0, L01.groundY, L01.canvasWidth, L01.canvasHeight - L01.groundY);
+    ctx.fillStyle = '#39457f'; ctx.fillRect(0, L01.groundY, L01.canvasWidth, 5);
+
+    // Source-style trail: a visible history is useful for validating replay.
+    ctx.fillStyle = 'rgba(255,255,255,.16)';
+    const trailStep = Math.max(1, Math.floor(history.length / 28));
+    for (let i = 0; i < history.length; i += trailStep) { ctx.beginPath(); ctx.arc(history[i].x + 17, history[i].y + 22, 2.2, 0, Math.PI * 2); ctx.fill(); }
+
+    // plate_a
+    ctx.fillStyle = shadowOnPlate ? '#ffd166' : '#c9a227'; roundRect(L01.plate.x, L01.groundY - 10, L01.plate.width, 10, 6); ctx.fill();
+    ctx.fillStyle = '#e9efff'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('机关 plate_a', L01.plate.x + 18, L01.groundY - 20);
+    ctx.fillStyle = 'rgba(255,209,102,.16)'; ctx.fillRect(L01.plate.x, L01.groundY - 72, L01.plate.width, 56);
+
+    // gate_a
+    ctx.fillStyle = '#2e3866'; ctx.fillRect(L01.gate.x, 0, L01.gate.width, L01.gate.top);
+    const gateHeight = (L01.groundY - L01.gate.top) * (1 - gateOpen);
+    if (gateHeight > 2) { ctx.fillStyle = '#59659c'; ctx.fillRect(L01.gate.x, L01.groundY - gateHeight, L01.gate.width, gateHeight); }
+    ctx.fillStyle = '#ffd166'; ctx.font = 'bold 12px sans-serif'; ctx.fillText(gateOpen > .85 ? 'gate_a 已开' : 'gate_a 锁住', L01.gate.x - 7, L01.gate.top - 12);
+
+    // exit_a
+    ctx.fillStyle = 'rgba(80,255,160,.14)'; roundRect(L01.exit.x - 8, L01.exit.top - 10, L01.exit.width + 16, L01.exit.height + 10, 14); ctx.fill();
+    ctx.strokeStyle = '#50ffa0'; ctx.lineWidth = 3; ctx.strokeRect(L01.exit.x, L01.exit.top, L01.exit.width, L01.exit.height);
+    ctx.fillStyle = '#50ffa0'; ctx.font = '22px serif'; ctx.fillText('★', L01.exit.x + 14, L01.exit.top + 34); ctx.font = 'bold 12px sans-serif'; ctx.fillText('exit_a', L01.exit.x + 7, L01.exit.top + 60);
+
+    if (shadow) { drawCharacter(shadow, true); ctx.fillStyle = '#ffb4c0'; ctx.font = '12px sans-serif'; ctx.fillText('-3.0s 影子', shadow.x - 6, shadow.y - 10); }
+    else if (state === 'playing') { ctx.fillStyle = 'rgba(255,255,255,.65)'; ctx.font = 'bold 13px sans-serif'; ctx.fillText('影子 3.0s 后出现', player.x - 24, player.y - 26); }
+    drawCharacter(player, false);
+  }
+
+  function animationLoop(now) {
+    if (!lastNow) lastNow = now;
+    const delta = Math.min(100, now - lastNow); lastNow = now;
+    if (state === 'playing') {
+      accumulator += delta;
+      while (accumulator >= sourceTickMs) { accumulator -= sourceTickMs; tick(); }
+    }
+    draw();
+    requestAnimationFrame(animationLoop);
+  }
+
+  function beep(freq = 660, duration = .08) {
+    if (muted) return;
+    try {
+      audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContext.state === 'suspended') audioContext.resume();
+      const oscillator = audioContext.createOscillator(); const gain = audioContext.createGain();
+      oscillator.frequency.value = freq; gain.gain.value = .035; oscillator.connect(gain); gain.connect(audioContext.destination);
+      oscillator.start(); gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + duration); oscillator.stop(audioContext.currentTime + duration);
+    } catch (_) { /* audio is optional */ }
+  }
+
+  function bindHold(id, name) {
+    const element = document.getElementById(id); if (!element) return;
+    const active = new Set();
+    const sync = () => { touchKeys[name] = active.size > 0; element.classList.toggle('on', active.size > 0); };
+    element.addEventListener('pointerdown', (event) => { event.preventDefault(); active.add(event.pointerId); element.setPointerCapture?.(event.pointerId); sync(); });
+    const end = (event) => { active.delete(event.pointerId); sync(); };
+    element.addEventListener('pointerup', end); element.addEventListener('pointercancel', end); element.addEventListener('lostpointercapture', end);
+  }
+
+  function setInput(input) {
+    keys.left = !!input.left; keys.right = !!input.right; keys.jump = !!input.jump;
+  }
+
+  function getState() {
+    return { state, frame, player: player && { x: player.x, y: player.y }, shadow: shadow && { x: shadow.x, y: shadow.y }, gateOpen, shadowOnPlate, plateStandFrames };
+  }
+
+  window.addEventListener('keydown', (event) => {
+    keys[event.code] = true;
+    if (['Space', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.preventDefault();
+    if (event.code === 'KeyR') { event.preventDefault(); resetGame(false); beep(360); }
+    if (state === 'ready' && (event.code === 'Enter' || event.code === 'Space')) { startGame(); }
+  });
+  window.addEventListener('keyup', (event) => { keys[event.code] = false; });
+  document.getElementById('start').addEventListener('click', () => { startGame(); beep(740); });
+  document.getElementById('replay').addEventListener('click', () => { resetGame(false); beep(740); });
+  document.getElementById('restart').addEventListener('click', () => { resetGame(false); beep(360); });
+  document.getElementById('touchRestart').addEventListener('click', () => { resetGame(false); beep(360); });
+  document.getElementById('mute').addEventListener('click', (event) => { muted = !muted; event.currentTarget.textContent = muted ? '🔇 已静音' : '🔊 音效'; });
+  bindHold('left', 'left'); bindHold('right', 'right'); bindHold('jump', 'jump');
+
+  // Public inspection hook for static/automated checks. No external network.
+  window.L01VerticalSlice = Object.freeze({ definition: L01, reset: resetGame, start: startGame, tick, setInput, getState });
+  resetGame(true);
+  requestAnimationFrame(animationLoop);
+})();
+</script>
+<!--
+UNITY MIGRATION NOTES
+- Keep L01/plate_a/gate_a/exit_a and the source values in L01.json.
+- Replace this 60 Hz accumulator with DeterministicTickClock at 30 Hz; map 180 source frames (~3 s) to 90 ticks.
+- Replace canvas player/physics with CharacterMotor, Input System actions, Side2D camera, then the V2.0 Side2D→Free3D transition volume.
+- Replace history[] with InputRecorder + RecordingBlob + ShadowPlayback; keep targetId-based, idempotent interaction events.
+- Move strings to Localization tables; do not ship this HTML's inline copy as the Unity source of truth.
+- This prototype proves L01 behavior only. The product still reserves level IDs L01–L24; no other level content is changed here.
+-->
+</body>
+</html>
