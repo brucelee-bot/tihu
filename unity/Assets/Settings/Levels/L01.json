@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "levelId": "L01",
+  "legacyLevelId": "1",
+  "legacySource": "game-source/shadow-grudge-iphone.html",
+  "legacySourceLines": "115-117, 224-305, 342-430, 488-530",
+  "titleKey": "level.l01.title",
+  "subtitleKey": "level.l01.subtitle",
+  "introKey": "level.l01.intro",
+  "teaserKey": "level.l01.teaser",
+  "startingCamera": "Side2D",
+  "legacyCanvas": { "width": 960, "height": 540, "groundY": 472 },
+  "player": {
+    "startX": 64.0,
+    "startYFromGround": 44.0,
+    "width": 34.0,
+    "height": 44.0,
+    "sourceMoveSpeedPerFrame": 3.9,
+    "sourceGravityPerFrameSquared": 0.7,
+    "sourceJumpVelocityPerFrame": -13.2
+  },
+  "shadow": {
+    "legacyDelayFrames": 180,
+    "shadowDelaySeconds": 3.0,
+    "shadowDelayTicks": 90,
+    "maxShadowCount": 1,
+    "grudgeProfile": "Grudge_None"
+  },
+  "plates": [
+    { "targetId": "plate_a", "x": 272.0, "width": 96.0, "labelKey": "level.l01.plate_a" }
+  ],
+  "doors": [
+    { "targetId": "gate_a", "x": 592.0, "width": 44.0, "top": 286.0, "plateTargetId": "plate_a" }
+  ],
+  "goal": { "targetId": "exit_a", "x": 836.0, "width": 52.0, "height": 92.0 },
+  "platforms": [],
+  "enemies": [],
+  "spikes": [],
+  "keyItems": [],
+  "checkpoints": [],
+  "objectiveIds": ["ReachPlateA", "RecordOneRun", "KeepPlateAActive", "OpenGateA", "ReachExitA"],
+  "provisionalV2": {
+    "cameraTransitionAnchor": "CameraVolume_SideToFree",
+    "free3DTransition": true,
+    "note": "Side2D-to-Free3D transition is V2.0 work; it is not present in the HTML source."
+  }
+}
