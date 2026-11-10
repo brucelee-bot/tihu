@@ -149,8 +149,8 @@
   function isPressed(name) { return !!keys[name] || !!touchKeys[name]; }
 
   function readMove() {
-    const left = isPressed('left') || isPressed('a');
-    const right = isPressed('right') || isPressed('d');
+    const left = isPressed('left') || isPressed('ArrowLeft') || isPressed('KeyA');
+    const right = isPressed('right') || isPressed('ArrowRight') || isPressed('KeyD');
     if (left === right) return 0;
     return right ? 1 : -1;
   }
@@ -197,7 +197,7 @@
     const move = readMove();
     player.vx = move * L01.player.moveSpeedPerFrame;
     if (move !== 0) { player.face = move; player.walk += 1; } else { player.walk = 0; }
-    if ((isPressed('jump') || isPressed('w')) && player.onGround) { player.vy = L01.player.jumpVelocityPerFrame; player.onGround = false; }
+    if ((isPressed('jump') || isPressed('Space') || isPressed('ArrowUp') || isPressed('KeyW')) && player.onGround) { player.vy = L01.player.jumpVelocityPerFrame; player.onGround = false; }
     physics(player);
     history.push({ x: player.x, y: player.y, face: player.face, walk: player.walk });
     if (history.length > 20000) history.shift();

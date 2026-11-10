@@ -62,7 +62,7 @@ namespace ShadowGrudge.Gameplay.L01
             if (definition.plates == null || definition.plates.Length == 0) definition.plates = new[] { new L01LevelDefinition.PlateData() };
             if (definition.doors == null || definition.doors.Length == 0) definition.doors = new[] { new L01LevelDefinition.DoorData() };
             if (definition.goal == null) definition.goal = new L01LevelDefinition.GoalData();
-            if (definition.shadow.shadowDelayTicks <= 0f) definition.shadow.shadowDelayTicks = 90f;
+            if (definition.shadow.shadowDelayTicks <= 0) definition.shadow.shadowDelayTicks = 90;
             if (tickClock == null) tickClock = FindFirstObjectByType<DeterministicTickClock>();
             if (tickClock == null) tickClock = gameObject.AddComponent<DeterministicTickClock>();
             BuildBlockout();
