@@ -2,7 +2,14 @@ const fs = require('fs'); const vm = require('vm');
 const html = fs.readFileSync(__dirname + '/l01-vertical-slice.html','utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 class Element {
-  constructor(id){this.id=id;this.textContent='';this.classList={toggle(){},add(){},remove(){}};this.style={};this.listeners={};}
+  constructor(id){
+    this.id=id; this.textContent=''; this.style={}; this.listeners={};
+    const classes = new Set();
+    this.classList={
+      toggle(name, force){const on=force === undefined ? !classes.has(name) : force; if(on) classes.add(name); else classes.delete(name); return on;},
+      add(name){classes.add(name);}, remove(name){classes.delete(name);}, contains(name){return classes.has(name);}
+    };
+  }
   addEventListener(name,fn){this.listeners[name]=fn;}
   setPointerCapture(){}
 }
@@ -14,7 +21,8 @@ const ctx={
 };
 const canvas=new Element('game'); canvas.getContext=()=>ctx;
 for(const id of ['game','status','time','record','shadowState','gateState','tip','startOverlay','winOverlay','start','replay','restart','mute','touchRestart','left','right','jump']) elements[id]=id==='game'?canvas:new Element(id);
-const document={getElementById(id){return elements[id]||new Element(id)}};
+const documentListeners={};
+const document={hidden:false,addEventListener(name,fn){documentListeners[name]=fn;},getElementById(id){return elements[id]||new Element(id)}};
 let now=0;
 const windowListeners={};
 const window={addEventListener(name,fn){windowListeners[name]=fn;},requestAnimationFrame(){},L01VerticalSlice:null};
@@ -99,3 +107,94 @@ key('keydown','KeyR'); key('keyup','KeyR');
 assert(game.getState().frame === 0 && game.getState().player.x === 64, 'R did not restart the game');
 inputTests++;
 console.log(JSON.stringify({keyboardEventTests: inputTests, result: 'passed'}));
+
+// Lost keyup and pointerup events must not leave movement or jump held.
+function interruptInput(type) {
+  if (type === 'blur') windowListeners.blur?.();
+  else { document.hidden = true; documentListeners.visibilitychange?.(); }
+}
+function resumeInput() {
+  document.hidden = false;
+  documentListeners.visibilitychange?.();
+  windowListeners.focus?.();
+}
+function pointer(id, type, pointerId = 1) {
+  elements[id].listeners[type]({pointerId,preventDefault(){}});
+}
+function assertReleased(id, x, groundY, label) {
+  if (id === 'jump') {
+    advance(60);
+    assert(game.getState().player.y === groundY, label + ' caused a repeated jump');
+  } else {
+    advance(10);
+    assert(game.getState().player.x === x, label + ' left movement held');
+  }
+}
+let interruptionTests = 0;
+for (const type of ['blur','hidden']) {
+  for (const code of ['ArrowRight','KeyD','ArrowLeft','KeyA']) {
+    resetForInputTest(); key('keydown',code); game.tick();
+    const stoppedX = game.getState().player.x;
+    interruptInput(type); resumeInput(); advance(10);
+    assert(game.getState().player.x === stoppedX, type + ' left ' + code + ' held without keyup');
+    key('keydown',code); game.tick();
+    assert(game.getState().player.x !== stoppedX, code + ' did not work after ' + type);
+    key('keyup',code); interruptionTests++;
+  }
+  for (const code of ['Space','ArrowUp','KeyW']) {
+    resetForInputTest(); const groundY = game.getState().player.y;
+    key('keydown',code); game.tick();
+    assert(game.getState().player.y < groundY, code + ' did not begin its jump');
+    interruptInput(type); resumeInput(); advance(60);
+    assert(game.getState().player.y === groundY, type + ' left ' + code + ' auto-jumping without keyup');
+    key('keydown',code); game.tick();
+    assert(game.getState().player.y < groundY, code + ' did not jump after ' + type);
+    key('keyup',code); interruptionTests++;
+  }
+  for (const id of ['left','right','jump']) {
+    resetForInputTest(); const groundY = game.getState().player.y;
+    pointer(id,'pointerdown'); game.tick();
+    const stoppedX = game.getState().player.x;
+    assert(elements[id].classList.contains('on'), id + ' did not highlight while held');
+    interruptInput(type); resumeInput();
+    assert(!elements[id].classList.contains('on'), type + ' left ' + id + ' highlighted');
+    assertReleased(id, stoppedX, groundY, type + ' on touch ' + id);
+    pointer(id,'pointerdown',2); game.tick();
+    assert(id === 'jump' ? game.getState().player.y < groundY : game.getState().player.x !== stoppedX, id + ' did not respond after ' + type);
+    pointer(id,'pointerup',2);
+    assert(!elements[id].classList.contains('on'), 'Stale pointer 1 kept ' + id + ' held after ' + type);
+    interruptionTests++;
+  }
+  // Late cancellation of one old contact cannot resurrect another old contact.
+  resetForInputTest();
+  pointer('right','pointerdown',11); pointer('right','pointerdown',12); game.tick();
+  const stoppedX = game.getState().player.x;
+  interruptInput(type); resumeInput(); pointer('right','pointercancel',11);
+  advance(10);
+  assert(game.getState().player.x === stoppedX && !elements.right.classList.contains('on'), type + ' did not clear the full active pointer set');
+  pointer('right','pointerup',12); interruptionTests++;
+}
+// A visible-page event alone must not cancel a legitimate held key.
+resetForInputTest(); key('keydown','KeyD');
+const visibleStart = game.getState().player.x;
+resumeInput(); advance(10);
+assert(Math.abs(game.getState().player.x-visibleStart-39) < 1e-8, 'Visible-page event cleared active input');
+key('keyup','KeyD'); interruptionTests++;
+// Existing pointer termination paths retain multi-touch semantics.
+for (const end of ['pointerup','pointercancel','lostpointercapture']) {
+  for (const id of ['left','right','jump']) {
+    resetForInputTest(); const groundY = game.getState().player.y;
+    pointer(id,'pointerdown'); game.tick(); const stoppedX = game.getState().player.x;
+    pointer(id,end);
+    assert(!elements[id].classList.contains('on'), end + ' left ' + id + ' highlighted');
+    assertReleased(id, stoppedX, groundY, end + ' on ' + id);
+    interruptionTests++;
+  }
+  resetForInputTest(); pointer('right','pointerdown',21); pointer('right','pointerdown',22);
+  pointer('right',end,21); const oneContactX=game.getState().player.x; advance(10);
+  assert(Math.abs(game.getState().player.x-oneContactX-39) < 1e-8, end + ' cleared another active contact');
+  pointer('right',end,22); const noContactsX=game.getState().player.x; advance(10);
+  assert(game.getState().player.x===noContactsX && !elements.right.classList.contains('on'), end + ' left the last contact held');
+  interruptionTests++;
+}
+console.log(JSON.stringify({interruptionAndPointerTests:interruptionTests,result:'passed'}));

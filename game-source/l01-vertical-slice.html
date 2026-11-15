@@ -106,6 +106,7 @@
   const winOverlay = document.getElementById('winOverlay');
   const keys = Object.create(null);
   const touchKeys = Object.create(null);
+  const touchInputResetters = [];
   const history = [];
   const sourceTickMs = 1000 / L01.shadow.tickRate;
   let state = 'ready';
@@ -320,10 +321,16 @@
     } catch (_) { /* audio is optional */ }
   }
 
+  function clearInput() {
+    for (const name of Object.keys(keys)) delete keys[name];
+    for (const reset of touchInputResetters) reset();
+  }
+
   function bindHold(id, name) {
     const element = document.getElementById(id); if (!element) return;
     const active = new Set();
     const sync = () => { touchKeys[name] = active.size > 0; element.classList.toggle('on', active.size > 0); };
+    touchInputResetters.push(() => { active.clear(); sync(); });
     element.addEventListener('pointerdown', (event) => { event.preventDefault(); active.add(event.pointerId); element.setPointerCapture?.(event.pointerId); sync(); });
     const end = (event) => { active.delete(event.pointerId); sync(); };
     element.addEventListener('pointerup', end); element.addEventListener('pointercancel', end); element.addEventListener('lostpointercapture', end);
@@ -344,6 +351,9 @@
     if (state === 'ready' && (event.code === 'Enter' || event.code === 'Space')) { startGame(); }
   });
   window.addEventListener('keyup', (event) => { keys[event.code] = false; });
+  // A tab switch or app interruption can swallow keyup/pointerup events.
+  window.addEventListener('blur', clearInput);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearInput(); });
   document.getElementById('start').addEventListener('click', () => { startGame(); beep(740); });
   document.getElementById('replay').addEventListener('click', () => { resetGame(false); beep(740); });
   document.getElementById('restart').addEventListener('click', () => { resetGame(false); beep(360); });
