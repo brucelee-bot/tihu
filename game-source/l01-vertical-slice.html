@@ -70,7 +70,7 @@
         <h2 style="color:#7dffb0">🎉 L01 完成</h2>
         <p>影子踩住了 <b>plate_a</b>，<b>gate_a</b> 已打开，你到达了 <b>exit_a</b>。</p>
         <button id="replay" class="primary">重玩 L01</button>
-        <div class="note">迁移提示：保留 L01 ID 和机关语义；把本原型的输入、录制、回放和碰撞替换为 Unity 30 Hz 运行时。</div>
+        <div class="note">再试一次，看看能不能更顺畅地借助影子开门。</div>
       </div>
     </div>
   </div>
@@ -113,7 +113,6 @@
   let player = null;
   let shadow = null;
   let frame = 0;
-  let startAt = 0;
   let lastNow = 0;
   let accumulator = 0;
   let gateOpen = 0;
@@ -136,8 +135,7 @@
     gateOpen = 0;
     plateStandFrames = 0;
     shadowOnPlate = false;
-    startAt = performance.now();
-    lastNow = startAt;
+    lastNow = performance.now();
     startOverlay.classList.toggle('show', showStart);
     winOverlay.classList.remove('show');
     statusEl.textContent = showStart ? '准备开始' : '录制中';
@@ -234,7 +232,8 @@
   }
 
   function updateHud() {
-    const elapsed = state === 'ready' ? 0 : (performance.now() - startAt) / 1000;
+    // Use the same simulated clock as recording, not wall time lost to background throttling.
+    const elapsed = frame / L01.shadow.tickRate;
     timeEl.textContent = elapsed.toFixed(1);
     // Recorded time is source frames / 60, independent of render frame rate.
     recordEl.textContent = (Math.min(frame, L01.shadow.legacyDelayFrames) / L01.shadow.tickRate).toFixed(1);
@@ -370,7 +369,8 @@
 <!--
 UNITY MIGRATION NOTES
 - Keep L01/plate_a/gate_a/exit_a and the source values in L01.json.
-- Replace this 60 Hz accumulator with DeterministicTickClock at 30 Hz; map 180 source frames (~3 s) to 90 ticks.
+- Unity tick rate is a provisional assumption pending performance and gameplay validation.
+- The current scaffold uses 30 Hz / 90 delay ticks; preserve the ~3 s delay and movement speed if that rate changes.
 - Replace canvas player/physics with CharacterMotor, Input System actions, Side2D camera, then the V2.0 Side2D→Free3D transition volume.
 - Replace history[] with InputRecorder + RecordingBlob + ShadowPlayback; keep targetId-based, idempotent interaction events.
 - Move strings to Localization tables; do not ship this HTML's inline copy as the Unity source of truth.

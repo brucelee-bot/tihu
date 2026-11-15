@@ -24,10 +24,11 @@ for(const id of ['game','status','time','record','shadowState','gateState','tip'
 const documentListeners={};
 const document={hidden:false,addEventListener(name,fn){documentListeners[name]=fn;},getElementById(id){return elements[id]||new Element(id)}};
 let now=0;
+let animationCallback;
 const windowListeners={};
 const window={addEventListener(name,fn){windowListeners[name]=fn;},requestAnimationFrame(){},L01VerticalSlice:null};
 const localStorage={setItem(){},getItem(){return null}};
-const context={window,document,localStorage,performance:{now:()=>now},requestAnimationFrame(){},setTimeout(){},console,Math};
+const context={window,document,localStorage,performance:{now:()=>now},requestAnimationFrame(callback){animationCallback=callback;},setTimeout(){},console,Math};
 vm.createContext(context); vm.runInContext(script, context);
 const game=context.window.L01VerticalSlice;
 function assert(c,msg){if(!c) throw new Error(msg)}
@@ -198,3 +199,70 @@ for (const end of ['pointerup','pointercancel','lostpointercapture']) {
   interruptionTests++;
 }
 console.log(JSON.stringify({interruptionAndPointerTests:interruptionTests,result:'passed'}));
+
+
+// Drive the production animation loop with a controllable monotonic clock.
+// Background tabs can skip callbacks; only simulated ticks count as game time.
+function renderAfter(milliseconds) {
+  now += milliseconds;
+  const callback = animationCallback;
+  assert(typeof callback === 'function', 'Animation callback missing');
+  animationCallback = null;
+  callback(now);
+  assert(typeof animationCallback === 'function', 'Animation loop did not reschedule');
+}
+function assertSimulationTime(label) {
+  const expected = (game.getState().frame / game.definition.shadow.tickRate).toFixed(1);
+  assert(elements.time.textContent === expected, label + ': HUD ' + elements.time.textContent + ' != simulated ' + expected);
+}
+let timingTests = 0;
+windowListeners.blur(); resumeInput(); now += 100;
+game.reset(true); renderAfter(10000);
+assert(game.getState().frame === 0 && elements.time.textContent === '0.0', 'Ready screen advanced the game timer');
+timingTests++;
+game.start();
+for (let i = 0; i < 30; i++) renderAfter(1000 / 60);
+assertSimulationTime('Normal animation');
+assert(elements.time.textContent === elements.record.textContent, 'Timer and recording use different clocks');
+timingTests++;
+for (let attempt = 1; attempt <= 2; attempt++) {
+  const before = game.getState();
+  key('keydown','KeyD');
+  interruptInput('hidden');
+  now += 10000; // No requestAnimationFrame callbacks while the page is hidden.
+  resumeInput(); renderAfter(0);
+  const after = game.getState();
+  const advanced = after.frame - before.frame;
+  assert(advanced >= 5 && advanced <= 6, 'Long gap bypassed the 100 ms catch-up cap');
+  assert(after.player.x === before.player.x, 'Background return resurrected held movement');
+  assertSimulationTime('10-second background gap ' + attempt);
+  assert(elements.time.textContent === elements.record.textContent, 'Background gap desynchronized timer and recording');
+  assert(!after.shadow, 'Wall-clock gap spawned the shadow before enough simulation ticks');
+  timingTests++;
+}
+while (game.getState().frame < game.definition.shadow.legacyDelayFrames + 1) renderAfter(1000 / 60);
+assert(game.getState().shadow, 'Shadow did not begin after the recorded simulation delay');
+assertSimulationTime('Shadow begins');
+assert(elements.record.textContent === '3.0', 'Recorded delay did not reach 3 seconds');
+timingTests++;
+for (let i = 0; i < 60; i++) renderAfter(1000 / 60);
+assertSimulationTime('After recording window');
+assert(Number(elements.time.textContent) > 3 && elements.record.textContent === '3.0', 'Total game time incorrectly stopped with the recording window');
+timingTests++;
+for (const id of ['restart','replay']) {
+  elements[id].listeners.click();
+  assert(game.getState().frame === 0 && elements.time.textContent === '0.0' && elements.record.textContent === '0.0', id + ' did not reset both simulated timers');
+  renderAfter(1000 / 60); assertSimulationTime(id + ' resumed');
+  timingTests++;
+}
+game.start(); game.setInput({right:true}); advance(56); game.setInput({}); advance(180);
+game.setInput({right:true});
+for (let i = 0; i < 150 && game.getState().state !== 'won'; i++) game.tick();
+game.setInput({}); assert(game.getState().state === 'won', 'Timer test did not complete the level');
+assertSimulationTime('Completion');
+const completedFrame = game.getState().frame;
+const completedTime = elements.time.textContent;
+renderAfter(10000);
+assert(game.getState().frame === completedFrame && elements.time.textContent === completedTime, 'Completed timer kept advancing');
+timingTests++;
+console.log(JSON.stringify({simulationTimingTests:timingTests,result:'passed'}));
